@@ -16,3 +16,12 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+kotlin {
+    jvmToolchain(22) // Match this to your installed Java version
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(22)) // Ensure Java uses the same version
+    }
+}
