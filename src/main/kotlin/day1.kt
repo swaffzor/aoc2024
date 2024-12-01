@@ -4,7 +4,7 @@ import java.io.File
 import kotlin.math.abs
 
 fun main() {
-    val fileName = "src/main/kotlin/day1.sample.input.txt"
+    val fileName = "src/main/kotlin/day1.s-input.txt"
     println("2024 Day 1:")
     println("part 1: ${day1part1(fileName)}")
     println("part 2: ${day1part2(fileName)}")
