@@ -4,10 +4,12 @@ import java.io.File
 import kotlin.math.abs
 
 fun main() {
+    val fileName = "src/main/kotlin/day1.sample.input.txt"
     println("2024 Day 1:")
-    println("part 1: ${day1part1()}")
-    println("part 2: ${day1part2()}")
+    println("part 1: ${day1part1(fileName)}")
+    println("part 2: ${day1part2(fileName)}")
 }
+
 /*
 Throughout the Chief's office, the historically significant locations are listed not by name but by a unique number
  called the location ID. To make sure they don't miss anything, The Historians split into two groups, each searching
@@ -49,19 +51,24 @@ To find the total distance between the left list and the right list, add up the 
 Your actual left and right lists contain many location IDs. What is the total distance between your lists?
 
 */
-
-fun day1part1(): String {
+fun parseInput(file: String): Pair<MutableList<Int>, MutableList<Int>> {
     val left = mutableListOf<Int>()
     val right = mutableListOf<Int>()
-    "src/main/kotlin/day1.input.txt".let { that ->
+    file.let { that ->
         File(that).readLines().map { line ->
             val temp = line.split("   ")
             left.add(temp.first().toInt())
             right.add(temp.last().toInt())
         }
     }
-    var leftSorted = left.sorted()
-    var rightSorted = right.sorted()
+    return Pair(left, right)
+}
+
+fun day1part1(fileInput: String): String {
+    val lists = parseInput(fileInput)
+
+    var leftSorted = lists.first.sorted()
+    var rightSorted = lists.second.sorted()
     var total = 0
 
     while (leftSorted.isNotEmpty()) {
@@ -74,30 +81,10 @@ fun day1part1(): String {
     return "$total"
 }
 
-fun day1part2(): String {
-    val left = mutableListOf<Int>()
-    val right = mutableListOf<Int>()
-    "src/main/kotlin/day1.input.txt".let { that ->
-        File(that).readLines().map { line ->
-            val temp = line.split("   ")
-            left.add(temp.first().toInt())
-            right.add(temp.last().toInt())
-        }
+fun day1part2(fileInput: String): String {
+    parseInput(fileInput).let { lists->
+        return lists.first.fold(0) { acc, i -> acc + i * lists.second.count { it == i } }.toString()
     }
-
-//    1st pass
-//    var similarity = 0
-//    while (left.isNotEmpty()) {
-//        val count = right.count { it == left.first() }
-//        similarity += left.first() * count
-//        left = left.drop(1).toMutableList()
-//    }
-//    return similarity.toString()
-
-//    2nd pass
-    return left.fold(0) { acc, i ->
-        acc + i * right.count { it == i }
-    }.toString()
 }
 
 /*
