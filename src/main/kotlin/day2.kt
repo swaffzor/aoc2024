@@ -4,11 +4,10 @@ import java.io.File
 import kotlin.math.abs
 
 fun main() {
-    val fileName = "src/main/kotlin/day2.s-input.txt"
+    val fileName = "src/main/kotlin/day2.input.txt"
     println("2024 Day 2:")
     println("part 1: ${day2part1(fileName)}")
-//    532 is too low
-//    println("part 2: ${day1part2(fileName)}")
+    println("part 2: ${day2part2(fileName)}")
 }
 
 fun day2part1(input: String): String {
@@ -25,9 +24,28 @@ fun day2part1(input: String): String {
     return count.toString()
 }
 
-fun day2part2(input: String): String {
+fun isReportSafe(report: List<Int>): Boolean {
+    if (report.zipWithNext().any { (a, b) -> abs(a - b) !in 1..3 }) return false
+    val allIncreasing = report.zipWithNext().all { (a, b) -> b > a }
+    val allDecreasing = report.zipWithNext().all { (a, b) -> b < a }
+    return allIncreasing || allDecreasing
+}
 
-    return ""
+fun day2part2(input: String): String {
+    var count = 0
+    input.let { that ->
+        count = File(that).readLines().count { line ->
+            val levels = line.split(" ").map { it.toInt() }
+            if (isReportSafe(levels)) return@count true
+            else {
+                for (i in 0 until levels.count()) {
+                    if (isReportSafe(levels.filterIndexed { index, _ -> index != i })) return@count true
+                }
+                false
+            }
+        }
+    }
+    return count.toString()
 }
 
 /*
