@@ -47,3 +47,6 @@ bin/
 .DS_Store
 
 **/*.input.txt
+
+input.txt
+node_modules
