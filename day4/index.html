@@ -101,8 +101,13 @@
         border: 1px solid #e5e7eb;
         border-radius: 4px;
       }
-      .cell.active {
+      .cell.primary {
         outline: 2px solid #2563eb;
+        outline-offset: 0;
+        background: #dbeafe;
+      }
+      .cell.secondary {
+        outline: 2px solid #67eb25;
         outline-offset: 0;
         background: #dbeafe;
       }
@@ -115,7 +120,7 @@
         user-select: none;
       }
       .newline::before {
-        content: "\\\\n";
+        content: "\\\n";
       }
       #status {
         margin-top: 8px;
@@ -131,7 +136,19 @@
       <textarea
         id="input"
         placeholder="Paste puzzle input here... Each row on its own line."
-      ></textarea>
+      >
+MMMSXXMASM
+MSAMXMSMSA
+AMXSXMAAMM
+MSAMASMSMX
+XMASAMXAMM
+XXAMMXXAMA
+SMSMSASXSS
+SAXAMASAAA
+MAMMMXMMMM
+MXMXAXMASX
+    </textarea
+      >
       <div id="actions">
         <button id="render">Render grid</button>
         <label
@@ -248,7 +265,18 @@
       gridWrapperEl.addEventListener("click", (e) => {
         const t = e.target;
         if (!t.classList.contains("cell")) return;
-        t.classList.toggle("active");
+
+        const containsSecondary = t.classList.contains("secondary");
+        const containsPrimary = t.classList.contains("primary");
+        if (containsSecondary) {
+          t.classList.toggle("secondary");
+        } else if (containsPrimary) {
+          t.classList.toggle("primary");
+          t.classList.toggle("secondary");
+        } else {
+          t.classList.toggle("primary");
+        }
+
         const { row, col } = t.dataset;
         console.log(
           `Clicked cell -> row: ${row}, col: ${col}, char:`,
