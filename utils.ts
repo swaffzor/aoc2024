@@ -175,9 +175,9 @@ export const extractDataToWeightedGraph = <T>(
     weights.length > 0
       ? weights
       : Object.values(graph.nodes).reduce((acc, node) => {
-          acc[node.id] = Number(node.value)
-          return acc
-        }, {} as Record<string, number>)
+        acc[node.id] = Number(node.value)
+        return acc
+      }, {} as Record<string, number>)
 
   const cost = (from: Location<T>, to: Location<T>, price: number) => {
     const weightValues = Object.entries(costs)
@@ -474,12 +474,12 @@ export const drawTile = <T>(
       style.number[id] === Infinity
         ? '∞'
         : val.length === 1
-        ? `${val}`
-        : val.length === 2
-        ? ` ${val}`
-        : val.length === 3
-        ? `${val}`
-        : val
+          ? `${val}`
+          : val.length === 2
+            ? ` ${val}`
+            : val.length === 3
+              ? `${val}`
+              : val
   }
   if (style.point_to && style.point_to[id]) {
     r = determineDirection(stringToPoint(id), stringToPoint(style.point_to[id]))
@@ -584,95 +584,4 @@ export const dijkstra = <T>(
   }
 
   return [cameFrom, costSoFar]
-}
-
-// export const dijkstra = (
-//   graph: WeightedGraph<number>,
-//   start: Location<number>,
-//   goal: Location<number>
-// ) => {
-//   const frontier: PriorityQueue<Location<number>> = {
-//     elements: [],
-//     push: (item, priority) => {
-//       frontier.elements.push([frontier.elements, [item, priority]])
-//       frontier.elements.sort((a, b) => a[1] - b[1])
-//     },
-//     pop: () => {
-//       return frontier.shift()?.item
-//     },
-//     size: () => frontier.length,
-//   }
-
-//   const cameFrom = {} as Record<string, Point<number>>
-//   cameFrom[start.col + ',' + start.row] = {} as Point<number> // just started, no previous point
-
-//   const costSoFar = {} as Record<string, number>
-//   costSoFar[start.col + ',' + start.row] = 0
-
-//   while (frontier.size > 0) {
-//     const current = frontier.values().next().value
-
-//     if (current?.col === goal.col && current?.row === goal.row) {
-//       break
-//     }
-
-//     const neighbors = getPointNeighbors(current, grid)
-//     // const test = neighbors.filter((n) => Number(n.value) < current.value)
-
-//     for (const next of neighbors) {
-//       const newCost =
-//         costSoFar[current.col + ',' + current.row] + Number(next.value)
-//       const nextIndex = next.col + ',' + next.row
-//       if (!(nextIndex in costSoFar)) {
-//         frontier.set(newCost, next)
-//         cameFrom[nextIndex] = current
-//       }
-//     }
-
-//     frontier.delete(current)
-//   }
-// }
-
-// var e0 = [0, 0];
-// var e1 = [0, 0];
-
-// function area(a) {
-//   var area = 0;
-//   var first = a[0];
-
-//   var l = a.length;
-//   for (var i=2; i<l; i++) {
-//     var p = a[i-1];
-//     var c = a[i];
-//     e0[0] = first[0] - c[0];
-//     e0[1] = first[1] - c[1];
-//     e1[0] = first[0] - p[0];
-//     e1[1] = first[1] - p[1];
-
-//     area += (e0[0] * e1[1]) - (e0[1] * e1[0]);
-//   }
-//   return area/2;
-// }
-
-// write a function that takes a list of points and returns the area of the polygon
-export const polygonArea = <T>(locations: Point<T>[]) => {
-  let side1 = { row: 0, col: 0 }
-  let side2 = { row: 0, col: 0 }
-  const first = locations[0]
-  const length = locations.length
-  let area = 0
-  for (let i = 2; i < length; i++) {
-    const p = locations[i - 1]
-    const c = locations[i]
-    side1 = {
-      col: first.col - c.col,
-      row: first.row - c.row,
-    }
-    side2 = {
-      col: first.col - p.col,
-      row: first.row - p.row,
-    }
-    area += side1.col * side2.row - side1.row * side2.col
-  }
-  return Math.abs(area / 2)
 }

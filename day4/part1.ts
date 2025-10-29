@@ -39,7 +39,8 @@ S.S.S.S.SS
 Take a look at the little Elf's word search. How many times does XMAS appear?
 */
 
-import { getPuzzleInput } from "../utils"
+import { Point, PointGrid } from "types";
+import { extractDataToPointGrid, getPuzzleInput } from "../utils"
 
 // check horizontal
 // check horizontal backwards
@@ -66,11 +67,77 @@ import { getPuzzleInput } from "../utils"
   step 2: on 'M' ? go to step 3, else move to next position
   step 3: on 'A' ? go to step 4, else move to next position
   step 4: on 'S' ? go to step 5, else move to next position
-  step 5: increment counter
+  step 5: increment counter; go to step 1
   */
+
+const directions = [
+  'E', 'W', 'N', 'S', 'NE', 'NW', 'SE', 'SW'
+]
+
 export const part1 = (input: string) => {
-  console.log(input)
-  return 0;
+  const xLocations = input.split('').map((v, i) => v === 'X' ? i : null).filter(n => n !== null)
+
+  const count = xLocations.reduce((p, c) => {
+    return p + directions.reduce((prev, direction) => {
+      const foundResult = findXMAS(input, direction, c)
+      return foundResult ? prev + 1 : prev
+    }, 0)
+  }, 0)
+
+  return count
 }
 
-const evaluatePosition = () => { }
+export const findXMAS = (input: string, direction: string, index: number) => {
+  const targetString = 'XMAS'
+  const rowWidth = input.indexOf('\n') + 1
+  let searchIndex = 0
+  let searchLetter = targetString[searchIndex]
+
+  while (isIndexValid(input, index, searchLetter)) {
+    if (searchLetter === 'S') {
+      console.log('fuck yeah, found xmas')
+      return true
+    }
+    searchIndex = searchIndex + 1
+    searchLetter = targetString[searchIndex]
+
+    // need to account for all the '\n' characters 
+    switch (direction) {
+      case 'E':
+        index = index + 1
+        break;
+      case 'W':
+        index = index - 1
+        break;
+      case 'N':
+        index = index - rowWidth
+        break;
+      case 'S':
+        index = index + rowWidth
+        break;
+      case 'NE':
+        index = index - rowWidth + 1
+        break;
+      case 'NW':
+        index = index - rowWidth - 1
+        break;
+      case 'SE':
+        index = index + rowWidth + 1
+        break;
+      case 'SW':
+        index = index + rowWidth - 1
+        break;
+      default:
+        break;
+    }
+    // const temp = Math.floor(index / rowWidth)
+    // index = index + temp
+  }
+
+  return false
+}
+
+export const isIndexValid = (input: string, index: number, value: string) => {
+  // console.log('input[', index, ']=', input[index])
+  return input[index] === value
+}

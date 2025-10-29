@@ -8,7 +8,7 @@ export type Row<T> = Point<T>[]
 export type PointGrid<T> = Row<T>[]
 
 export interface Location<T> extends Point<T> {
-  id: string
+  id: string // "col,row"
   value: T
 }
 
