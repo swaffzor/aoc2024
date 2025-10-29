@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AoC 2024 Day 4.1 — Grid Viewer</title>
+    <style>
+      :root {
+        --cell-size: 1.8ch;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        line-height: 1.4;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+          Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
+          "Segoe UI Emoji", "Segoe UI Symbol";
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 20px;
+      }
+      #controls {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: start;
+        margin-bottom: 12px;
+      }
+      textarea {
+        width: 100%;
+        height: 240px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 14px;
+        padding: 8px;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+      }
+      #actions {
+        display: grid;
+        gap: 8px;
+      }
+      button {
+        padding: 8px 12px;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        background: #f6f8fa;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+      label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+      }
+      .grid-wrapper {
+        display: inline-grid;
+        grid-template-columns: var(--cell-size) repeat(
+            auto-fit,
+            var(--cell-size)
+          );
+        gap: 2px;
+        align-items: center;
+        justify-content: start;
+      }
+      .axis-label {
+        width: var(--cell-size);
+        height: var(--cell-size);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 14px;
+        font-weight: 600;
+        user-select: none;
+        color: #6b7280;
+      }
+      #grid {
+        display: contents;
+      }
+      .cell {
+        width: var(--cell-size);
+        height: var(--cell-size);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 16px;
+        user-select: none;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+      }
+      .cell.active {
+        outline: 2px solid #2563eb;
+        outline-offset: 0;
+        background: #dbeafe;
+      }
+      .no-borders .cell {
+        border: none;
+      }
+      .newline {
+        font-style: italic;
+        color: #9ca3af;
+        user-select: none;
+      }
+      .newline::before {
+        content: "\\\\n";
+      }
+      #status {
+        margin-top: 8px;
+        color: #6b7280;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AoC 2024 Day 4.1</h1>
+
+    <div id="controls">
+      <textarea
+        id="input"
+        placeholder="Paste puzzle input here... Each row on its own line."
+      ></textarea>
+      <div id="actions">
+        <button id="render">Render grid</button>
+        <label
+          ><input type="checkbox" id="toggleBorders" checked /> Show
+          borders</label
+        >
+        <label
+          ><input type="checkbox" id="trimLines" checked /> Trim trailing
+          spaces</label
+        >
+      </div>
+    </div>
+
+    <div class="grid-wrapper" aria-live="polite" aria-label="Puzzle grid">
+      <div id="grid"></div>
+    </div>
+    <div id="status"></div>
+
+    <script>
+      const $ = (sel) => document.querySelector(sel);
+      const gridWrapperEl = document.querySelector(".grid-wrapper");
+      const gridEl = $("#grid");
+      const inputEl = $("#input");
+      const statusEl = $("#status");
+      const toggleBordersEl = $("#toggleBorders");
+      const trimLinesEl = $("#trimLines");
+
+      function parseInput(text) {
+        // Split by \r\n or \n but keep the newline character as part of data structure
+        const linesRaw = text.replace(/\r/g, "").split("\n");
+        // We keep the newline character as a separate element at end of each line
+        const linesWithNewline = linesRaw.map((line) => {
+          if (trimLinesEl.checked) {
+            line = line.trimEnd();
+          }
+          return line + "\n";
+        });
+        return linesWithNewline;
+      }
+
+      function renderGrid(lines) {
+        if (!lines || !lines.length) {
+          gridEl.innerHTML = "";
+          statusEl.textContent = "Nothing to render.";
+          return;
+        }
+        const rows = lines.length;
+        // Calculate max columns including the extra newline character at the end of each line
+        const cols = Math.max(...lines.map((l) => l.length));
+
+        // Clear previous content
+        gridWrapperEl.innerHTML = "";
+
+        // Create top-left empty corner cell
+        const corner = document.createElement("div");
+        corner.className = "axis-label";
+        gridWrapperEl.appendChild(corner);
+
+        // Create column labels
+        for (let c = 0; c < cols; c++) {
+          const colLabel = document.createElement("div");
+          colLabel.className = "axis-label";
+          colLabel.textContent = c;
+          gridWrapperEl.appendChild(colLabel);
+        }
+
+        let charIndex = 0;
+
+        // Create rows with row labels and cells
+        for (let r = 0; r < rows; r++) {
+          // Row label
+          const rowLabel = document.createElement("div");
+          rowLabel.className = "axis-label";
+          rowLabel.textContent = r;
+          gridWrapperEl.appendChild(rowLabel);
+
+          const line = lines[r].padEnd(cols, " ");
+          for (let c = 0; c < cols; c++) {
+            const ch = line[c];
+            const cell = document.createElement("div");
+            cell.className = "cell";
+            cell.dataset.row = r;
+            cell.dataset.col = c;
+            if (ch === "\n") {
+              cell.classList.add("newline");
+              cell.textContent = ""; // content is shown by ::before in CSS
+            } else {
+              cell.textContent = ch;
+            }
+            cell.title = `Index: ${charIndex}, char: ${
+              ch === "\n" ? "\\n" : ch
+            }`;
+            charIndex++;
+            gridWrapperEl.appendChild(cell);
+          }
+        }
+
+        // Adjust grid template columns to include the row label column
+        gridWrapperEl.style.gridTemplateColumns = `var(--cell-size) repeat(${cols}, var(--cell-size))`;
+
+        statusEl.textContent = `Rendered ${rows} rows × ${cols} cols (${
+          rows * cols
+        } cells).`;
+      }
+
+      $("#render").addEventListener("click", () => {
+        renderGrid(parseInput(inputEl.value));
+      });
+
+      toggleBordersEl.addEventListener("change", () => {
+        gridWrapperEl.classList.toggle("no-borders", !toggleBordersEl.checked);
+      });
+
+      gridWrapperEl.addEventListener("click", (e) => {
+        const t = e.target;
+        if (!t.classList.contains("cell")) return;
+        t.classList.toggle("active");
+        const { row, col } = t.dataset;
+        console.log(
+          `Clicked cell -> row: ${row}, col: ${col}, char:`,
+          t.textContent
+        );
+      });
+
+      window.addEventListener("DOMContentLoaded", () => {
+        if (inputEl.value.trim()) renderGrid(parseInput(inputEl.value));
+      });
+    </script>
+  </body>
+</html>
