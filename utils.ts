@@ -28,6 +28,10 @@ export const getPuzzleInput = <T = string>(
   }
 }
 
+export const readInput = (day: number, useSample?: boolean) => {
+  return getPuzzleInput(`day${day}/${useSample ? 'sampleInput' : 'input'}`)
+}
+
 export const getPointNeighbors = <T>(
   point: Point<T>,
   grid: PointGrid<T>,
