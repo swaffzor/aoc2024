@@ -90,6 +90,114 @@ In this example, the guard will visit 41 distinct positions on your map.
 Predict the path of the guard. How many distinct positions will the guard visit before leaving the mapped area?
 */
 
+import { Point, Row } from "../types";
+import { extractDataToPointGrid } from "../utils";
+
+type Grid = Row<string>;
+// Grid.z for visit status (0/1)
+// Grid.value: "." | "#" | "^" | "v" | "<" | ">";
+
 export const day6part1 = (input: string) => {
-  return 0;
+  const initGrid = extractDataToPointGrid<string>(input).flat() as Grid;
+  // find start '^'
+  // keep track of the grid and allow each point to be visited
+  // make move
+  //   check for collision with next position
+  //   if collision, turn right
+  // repeat until moved out of bounds
+  let grid: Grid = initGrid.map((p) => (p.value === "^" ? { ...p, z: 1 } : p));
+  let loop = true;
+  while (loop) {
+    grid = makeMove(grid);
+    const temp = getPosition(grid);
+    loop = !!temp;
+  }
+  return grid.reduce((sum, p) => {
+    return sum + (p.z ? 1 : 0);
+  }, 0);
+};
+
+const makeMove = (grid: Grid): Grid => {
+  const position = getPosition(grid) ?? ({} as Point<string>);
+  const nextPosition = getNextPosition(grid, position) ?? position;
+
+  if (nextPosition?.value === "#") {
+    switch (position.value) {
+      case "^":
+        return executeMove(position, position, grid, ">");
+      case ">":
+        return executeMove(position, position, grid, "v");
+      case "v":
+        return executeMove(position, position, grid, "<");
+      case "<":
+        return executeMove(position, position, grid, "^");
+      default:
+        return executeMove(position, position, grid, ".");
+    }
+  }
+  return executeMove(position, nextPosition, grid, position?.value ?? "");
+};
+
+const executeMove = (
+  position: Point<string>,
+  nextPosition: Point<string>,
+  grid: Grid,
+  value: string
+): Grid => {
+  return grid.map((p) =>
+    p.col === nextPosition?.col && p.row === nextPosition.row
+      ? { ...nextPosition, value, z: 1 }
+      : p.col === position.col && p.row === position.row
+      ? { ...p, value: "." }
+      : p
+  );
+};
+
+const getPosition = (grid: Grid) => {
+  return grid
+    .flat()
+    .find(
+      (p) =>
+        p.value === "^" || p.value === "v" || p.value === "<" || p.value === ">"
+    );
+};
+
+const getNextPosition = (
+  grid: Grid,
+  position: Point<string>
+): Point<string> | null => {
+  let temp = { ...position };
+  switch (position.value) {
+    case "<":
+      temp = {
+        ...position,
+        col: position.col - 1,
+      };
+      break;
+    case "^":
+      temp = {
+        ...position,
+        row: position.row - 1,
+      };
+      break;
+    case "v":
+      temp = {
+        ...position,
+        row: position.row + 1,
+      };
+      break;
+    case ">":
+      temp = {
+        ...position,
+        col: position.col + 1,
+      };
+      break;
+    default:
+      return null;
+  }
+
+  return {
+    ...temp,
+    value: grid.find((p) => p.row === temp.row && p.col === temp.col)?.value,
+  };
 };
