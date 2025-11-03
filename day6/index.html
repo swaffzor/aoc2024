@@ -6,7 +6,7 @@
     <title>AoC 2024 Day 6.2 — Viewer</title>
     <style>
       :root {
-        --cell-size: 1.8ch;
+        --cell-size: 1px;
       }
       * {
         box-sizing: border-box;
@@ -64,6 +64,18 @@
         gap: 6px;
         font-size: 14px;
       }
+      .viewport {
+        height: 90vh; /* visible window for the grid */
+        overflow: auto; /* only this container scrolls */
+        position: relative;
+        contain: content;
+        will-change: scroll-position;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        background: white;
+        padding: 8px;
+        margin-top: 8px;
+      }
       .grid-wrapper {
         display: inline-grid;
         grid-template-columns: var(--cell-size) repeat(
@@ -107,10 +119,10 @@
       .cell.secondary {
         outline: 2px solid #67eb25;
         outline-offset: 0;
-        background: #dbeafe;
+        color: #245ca5;
       }
       .cell.primary {
-        outline: 2px solid #2563eb;
+        outline: 4px solid #eb2525;
         outline-offset: 0;
         background: #dbeafe;
       }
@@ -126,8 +138,17 @@
         content: "\\\n";
       }
       .obstacle {
-        background-color: #585858;
-        color: #dbeafe;
+        /* Dark base + high-contrast outline so obstacles pop even at 1px cells */
+        background-color: #2f2f2f;
+        color: #262729;
+        outline: 3px solid #111; /* thick outline independent of --cell-size */
+        outline-offset: 0;
+        /* Subtle hatch pattern for texture at larger cell sizes, still noticeable when tiny */
+        background-image: repeating-linear-gradient(
+          45deg,
+          rgba(255, 255, 255, 0.3) 0 2px,
+          transparent 2px 6px
+        );
       }
       #status {
         margin-top: 8px;
@@ -149,12 +170,6 @@
         set grid
       </button>
 
-      <div id="root"></div>
-
-      <div class="grid-wrapper" aria-live="polite" aria-label="Puzzle grid">
-        <div id="grid"></div>
-      </div>
-
       <div style="display: flex; flex-direction: column; width: 94px">
         <button id="stepButton" style="height: 50%" onclick="togglePlayPause()">
           play
@@ -163,16 +178,113 @@
           step
         </button>
       </div>
-      <div id="counter">1</div>
+    </div>
+
+    <div
+      id="sliders"
+      style="display: flex; align-items: center; gap: 16px; margin-top: 8px"
+    >
+      <label for="cellSizeSlider">cell size</label>
+      <div style="display: flex; align-items: center; gap: 8px">
+        <button id="decCellSize" title="smaller" type="button">◀︎</button>
+        <input
+          id="cellSizeSlider"
+          type="range"
+          min="1"
+          max="32"
+          value="4"
+          step="1"
+        />
+        <button id="incCellSize" title="larger" type="button">▶︎</button>
+        <span
+          id="cellSizeValue"
+          style="font-family: monospace; min-width: 32px; text-align: right"
+          >4</span
+        >
+      </div>
+      <label for="coolingSlider"
+        >cooling (ms)
+        <input
+          id="coolingSlider"
+          type="range"
+          min="2000"
+          max="60000"
+          value="20000"
+          step="1000"
+        />
+      </label>
+      <span id="coolingValue" style="font-family: monospace">20000</span>
+    </div>
+
+    <div id="counter">1</div>
+
+    <div id="viewport" class="viewport">
+      <div id="root"></div>
     </div>
 
     <script>
+      const FRAME_RATE = 3;
+      const EMPTY = "";
+      // Heat coloring constants and helpers
+      window.HEAT_WINDOW_MS = 20000; // how long it takes to cool from red -> blue
+      const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+      const heatColor = (ageMs) => {
+        const t = clamp(ageMs / HEAT_WINDOW_MS, 0, 1);
+        // Hue: 0 (red) -> 260 (purple/blue); keep high saturation for vivid color
+        const hue = 260 * t; // 0 is red (just visited), 260 is violet/blue (oldest)
+        const sat = 90;
+        const light = 55;
+        return `hsl(${hue} ${sat}% ${light}%)`;
+      };
+      const isVisited = (p) => typeof p?.z === "number" && p.z > 0;
       const $ = (sel) => document.querySelector(sel);
       const rootEl = $("#root");
-      const gridWrapperEl = document.querySelector(".grid-wrapper");
-      const gridEl = $("#grid");
       const inputEl = $("#input");
       const counterEl = $("#counter");
+      const viewportEl = $("#viewport");
+      const cellSizeSlider = $("#cellSizeSlider");
+      const coolingSlider = $("#coolingSlider");
+      const coolingValueEl = $("#coolingValue");
+      const decCellSizeBtn = $("#decCellSize");
+      const incCellSizeBtn = $("#incCellSize");
+      const cellSizeValueEl = $("#cellSizeValue");
+
+      const savedCellSize = Number(localStorage.getItem("cellSize")) || 4;
+      const savedCooling = Number(localStorage.getItem("coolingMs")) || 20000;
+      cellSizeSlider.value = String(savedCellSize);
+      coolingSlider.value = String(savedCooling);
+      cellSizeValueEl.textContent = String(savedCellSize);
+      coolingValueEl.textContent = String(savedCooling);
+      document.documentElement.style.setProperty(
+        "--cell-size",
+        `${savedCellSize}px`
+      );
+      window.HEAT_WINDOW_MS = savedCooling;
+
+      cellSizeSlider?.addEventListener("input", (e) => {
+        const size = Number(e.target.value);
+        document.documentElement.style.setProperty("--cell-size", `${size}px`);
+        localStorage.setItem("cellSize", String(size));
+        if (cellSizeValueEl) cellSizeValueEl.textContent = String(size);
+      });
+
+      coolingSlider?.addEventListener("input", (e) => {
+        const val = Number(e.target.value);
+        window.HEAT_WINDOW_MS = val;
+        coolingValueEl.textContent = String(val);
+        localStorage.setItem("coolingMs", String(val));
+      });
+
+      const bumpCellSize = (delta) => {
+        const curr = Number(cellSizeSlider.value);
+        const next = Math.min(32, Math.max(1, curr + delta));
+        if (next !== curr) {
+          cellSizeSlider.value = String(next);
+          cellSizeSlider.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      };
+      decCellSizeBtn?.addEventListener("click", () => bumpCellSize(-1));
+      incCellSizeBtn?.addEventListener("click", () => bumpCellSize(1));
 
       // Single-loop controller to avoid multiple concurrent animation loops
       const loop = {
@@ -213,26 +325,31 @@
         // Prevent stacking multiple timeouts/RAFs
         if (loop.pending) return;
         loop.pending = true;
-        loop.timerId = setTimeout(() => {
-          incrementCounter(grid);
-          const next = makeMove(grid);
-          saveGrid(next);
-          loop.rafId = requestAnimationFrame(() => {
-            loop.pending = false;
-            renderGrid(next);
-          });
-        }, 500);
+        // loop.timerId = setTimeout(() => {
+        incrementCounter(grid);
+        const next = makeMove(grid);
+        saveGrid(next);
+        loop.rafId = requestAnimationFrame(() => {
+          loop.pending = false;
+          renderGrid(next);
+        });
+        // }, FRAME_RATE);
       };
 
-      const renderGrid = (grid) => {
-        if (!grid || !grid.length) {
-          gridWrapperEl.innerHTML = "";
-          return;
-        }
+      let cellEls = null; // Map key: `${row}:${col}` -> element
+      let gridDims = { rows: 0, cols: 0 };
+
+      const ensureDOMForGrid = (grid) => {
+        const rows = Math.max(...grid.map((p) => p.row)) + 1;
+        const cols = Math.max(...grid.map((p) => p.col)) + 1;
+        if (cellEls && gridDims.rows === rows && gridDims.cols === cols) return;
 
         rootEl.innerHTML = "";
-        let row = document.createElement("div");
-        row.style = "display: flex;";
+        cellEls = new Map();
+        gridDims = { rows, cols };
+
+        let rowEl = document.createElement("div");
+        rowEl.style = "display: flex;";
 
         for (let i = 0; i < grid.length; i++) {
           const curr = grid[i];
@@ -240,40 +357,75 @@
           const next =
             nextIndex < grid.length ? grid[nextIndex] : { row: undefined };
 
-          row.appendChild(createCell(curr));
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          cellEls.set(`${curr.row}:${curr.col}`, cell);
+          rowEl.appendChild(cell);
 
           if (curr.row !== next.row) {
-            rootEl.appendChild(row);
-            row = document.createElement("div");
-            row.style = "display: flex;";
+            rootEl.appendChild(rowEl);
+            rowEl = document.createElement("div");
+            rowEl.style = "display: flex;";
+          }
+        }
+      };
+
+      const renderGrid = (grid) => {
+        if (!grid || !grid.length) {
+          rootEl.innerHTML = EMPTY;
+          return;
+        }
+
+        ensureDOMForGrid(grid);
+
+        let activeCell = null;
+
+        for (let i = 0; i < grid.length; i++) {
+          const curr = grid[i];
+          const el = cellEls.get(`${curr.row}:${curr.col}`);
+
+          // Reset classes/styles (minimal touches)
+          el.className = "cell";
+          el.removeAttribute("data-age");
+          el.style.outline = "";
+          el.style.backgroundColor = "";
+
+          // Primary marker (agent)
+          if (curr.value !== EMPTY && curr.value !== "#") {
+            el.classList.add("primary");
+            activeCell = el;
+          }
+          // Obstacle
+          if (curr.value === "#") {
+            el.classList.add("obstacle");
+          }
+          // Heat color
+          if (isVisited(curr) && curr.value !== "#") {
+            const age = Date.now() - curr.z;
+            const color = heatColor(age);
+            el.style.backgroundColor = color;
+            el.style.outline = `3px solid ${color}`;
+            el.setAttribute("data-age", String(age));
           }
         }
 
         if (getPosition(grid)) {
-          console.log(new Date().getMilliseconds(), "requesting frame");
           scheduleNext(grid);
         }
-      };
 
-      const createCell = (curr) => {
-        const el = document.createElement("div");
-        el.textContent = curr.value;
-        el.className = "cell";
-        if (curr.z === 1) {
-          el.classList.add("secondary");
+        // Center vertically using the active cell's offset
+        if (activeCell && viewportEl) {
+          const target =
+            activeCell.offsetTop -
+            (viewportEl.clientHeight / 2 - activeCell.offsetHeight / 2);
+          const delta = Math.abs(viewportEl.scrollTop - target);
+          if (delta > 2) viewportEl.scrollTop = target;
         }
-        if (curr.value !== "." && curr.value !== "#") {
-          el.classList.toggle("primary");
-        }
-        if (curr.value === "#") {
-          el.classList.add("obstacle");
-        }
-        return el;
       };
 
       const incrementCounter = (grid) =>
         (counterEl.innerHTML = grid.reduce(
-          (sum, p) => sum + (p.z === 1 ? 1 : 0),
+          (sum, p) => sum + (isVisited(p) ? 1 : 0),
           0
         ));
 
@@ -308,18 +460,25 @@
             case "<":
               return executeMove(position, position, grid, "^");
             default:
-              return executeMove(position, position, grid, ".");
+              return executeMove(position, position, grid, EMPTY);
           }
         }
-        return executeMove(position, nextPosition, grid, position?.value ?? "");
+        return executeMove(
+          position,
+          nextPosition,
+          grid,
+          position?.value ?? EMPTY
+        );
       };
 
       const executeMove = (position, nextPosition, grid, value) => {
         return grid.map((p) =>
           p.col === nextPosition?.col && p.row === nextPosition.row
-            ? { ...nextPosition, value, z: 1 }
+            ? { ...nextPosition, value, z: Date.now() }
             : p.col === position.col && p.row === position.row
-            ? { ...p, value: "." }
+            ? { ...p, value: EMPTY }
+            : p.value === "."
+            ? { ...p, value: EMPTY }
             : p
         );
       };
@@ -404,7 +563,11 @@
         cancelLoop();
         counterEl.innerHTML = 1;
         const newGrid = parseInput(inputEl.value);
-        saveGrid(newGrid.map((p) => (p.value === "^" ? { ...p, z: 1 } : p)));
+        cellEls = null;
+        gridDims = { rows: 0, cols: 0 };
+        saveGrid(
+          newGrid.map((p) => (p.value === "^" ? { ...p, z: Date.now() } : p))
+        );
         renderGrid(newGrid);
         cancelLoop();
       };
