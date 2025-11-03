@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AoC 2024 Day 6.2 — Viewer</title>
+    <style>
+      :root {
+        --cell-size: 1.8ch;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        line-height: 1.4;
+        background-color: grey;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+          Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
+          "Segoe UI Emoji", "Segoe UI Symbol";
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 20px;
+      }
+      #controls {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: start;
+        margin-bottom: 12px;
+      }
+      textarea {
+        width: 100%;
+        height: 240px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 14px;
+        padding: 8px;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+      }
+      #actions {
+        display: grid;
+        gap: 8px;
+      }
+      button {
+        padding: 8px 12px;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        background: #f6f8fa;
+        cursor: pointer;
+        font-weight: 600;
+        margin: 4px;
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+      label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+      }
+      .grid-wrapper {
+        display: inline-grid;
+        grid-template-columns: var(--cell-size) repeat(
+            auto-fit,
+            var(--cell-size)
+          );
+        gap: 2px;
+        align-items: center;
+        justify-content: start;
+      }
+      .axis-label {
+        width: var(--cell-size);
+        height: var(--cell-size);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 14px;
+        font-weight: 600;
+        user-select: none;
+        color: #6b7280;
+      }
+      #grid {
+        display: contents;
+      }
+      .cell {
+        width: var(--cell-size);
+        height: var(--cell-size);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 16px;
+        user-select: none;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        margin: 4px;
+      }
+      .cell.secondary {
+        outline: 2px solid #67eb25;
+        outline-offset: 0;
+        background: #dbeafe;
+      }
+      .cell.primary {
+        outline: 2px solid #2563eb;
+        outline-offset: 0;
+        background: #dbeafe;
+      }
+      .no-borders .cell {
+        border: none;
+      }
+      .newline {
+        font-style: italic;
+        color: #9ca3af;
+        user-select: none;
+      }
+      .newline::before {
+        content: "\\\n";
+      }
+      .obstacle {
+        background-color: #585858;
+        color: #dbeafe;
+      }
+      #status {
+        margin-top: 8px;
+        color: #6b7280;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AoC 2024 Day 6.2</h1>
+
+    <div style="display: flex">
+      <textarea
+        id="input"
+        style="width: 25%; height: 200px"
+        placeholder="paste input here"
+      ></textarea>
+      <button style="align-self: center" id="resetButton" onclick="setup()">
+        set grid
+      </button>
+
+      <div id="root"></div>
+
+      <div class="grid-wrapper" aria-live="polite" aria-label="Puzzle grid">
+        <div id="grid"></div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; width: 94px">
+        <button id="stepButton" style="height: 50%" onclick="togglePlayPause()">
+          play
+        </button>
+        <button id="playButton" style="height: 50%" onclick="takeStep(true)">
+          step
+        </button>
+      </div>
+      <div id="counter">1</div>
+    </div>
+
+    <script>
+      const $ = (sel) => document.querySelector(sel);
+      const rootEl = $("#root");
+      const gridWrapperEl = document.querySelector(".grid-wrapper");
+      const gridEl = $("#grid");
+      const inputEl = $("#input");
+      const counterEl = $("#counter");
+
+      // Single-loop controller to avoid multiple concurrent animation loops
+      const loop = {
+        timerId: null,
+        rafId: null,
+        pending: false,
+        play: () => {
+          scheduleNext(getGrid());
+          $("#stepButton").innerHTML = "pause";
+        },
+        pause: () => {
+          cancelLoop();
+          $("#stepButton").innerHTML = "play";
+        },
+      };
+
+      const togglePlayPause = () => {
+        if (loop.timerId || loop.rafId) {
+          loop.pause();
+        } else {
+          loop.play();
+        }
+      };
+
+      const cancelLoop = () => {
+        if (loop.timerId) {
+          clearTimeout(loop.timerId);
+          loop.timerId = null;
+        }
+        if (loop.rafId) {
+          cancelAnimationFrame(loop.rafId);
+          loop.rafId = null;
+        }
+        loop.pending = false;
+      };
+
+      const scheduleNext = (grid) => {
+        // Prevent stacking multiple timeouts/RAFs
+        if (loop.pending) return;
+        loop.pending = true;
+        loop.timerId = setTimeout(() => {
+          incrementCounter(grid);
+          const next = makeMove(grid);
+          saveGrid(next);
+          loop.rafId = requestAnimationFrame(() => {
+            loop.pending = false;
+            renderGrid(next);
+          });
+        }, 500);
+      };
+
+      const renderGrid = (grid) => {
+        if (!grid || !grid.length) {
+          gridWrapperEl.innerHTML = "";
+          return;
+        }
+
+        rootEl.innerHTML = "";
+        let row = document.createElement("div");
+        row.style = "display: flex;";
+
+        for (let i = 0; i < grid.length; i++) {
+          const curr = grid[i];
+          const nextIndex = i + 1;
+          const next =
+            nextIndex < grid.length ? grid[nextIndex] : { row: undefined };
+
+          row.appendChild(createCell(curr));
+
+          if (curr.row !== next.row) {
+            rootEl.appendChild(row);
+            row = document.createElement("div");
+            row.style = "display: flex;";
+          }
+        }
+
+        if (getPosition(grid)) {
+          console.log(new Date().getMilliseconds(), "requesting frame");
+          scheduleNext(grid);
+        }
+      };
+
+      const createCell = (curr) => {
+        const el = document.createElement("div");
+        el.textContent = curr.value;
+        el.className = "cell";
+        if (curr.z === 1) {
+          el.classList.add("secondary");
+        }
+        if (curr.value !== "." && curr.value !== "#") {
+          el.classList.toggle("primary");
+        }
+        if (curr.value === "#") {
+          el.classList.add("obstacle");
+        }
+        return el;
+      };
+
+      const incrementCounter = (grid) =>
+        (counterEl.innerHTML = grid.reduce(
+          (sum, p) => sum + (p.z === 1 ? 1 : 0),
+          0
+        ));
+
+      const getGrid = () =>
+        JSON.parse(localStorage.getItem("grid")) ?? parseInput(inputEl.value);
+      const saveGrid = (grid) =>
+        localStorage.setItem("grid", JSON.stringify(grid));
+
+      const takeStep = (cancel = false) => {
+        cancelLoop();
+        const grid = makeMove(getGrid());
+        saveGrid(grid);
+        renderGrid(grid);
+        incrementCounter(grid);
+        cancel && cancelLoop();
+        if (!loop.rafId && !loop.timerId) $("#stepButton").innerHTML = "play";
+        else $("#stepButton").innerHTML = "pause";
+      };
+
+      const makeMove = (grid) => {
+        const position = getPosition(grid) ?? {};
+        const nextPosition = getNextPosition(grid, position) ?? position;
+
+        if (nextPosition?.value === "#") {
+          switch (position.value) {
+            case "^":
+              return executeMove(position, position, grid, ">");
+            case ">":
+              return executeMove(position, position, grid, "v");
+            case "v":
+              return executeMove(position, position, grid, "<");
+            case "<":
+              return executeMove(position, position, grid, "^");
+            default:
+              return executeMove(position, position, grid, ".");
+          }
+        }
+        return executeMove(position, nextPosition, grid, position?.value ?? "");
+      };
+
+      const executeMove = (position, nextPosition, grid, value) => {
+        return grid.map((p) =>
+          p.col === nextPosition?.col && p.row === nextPosition.row
+            ? { ...nextPosition, value, z: 1 }
+            : p.col === position.col && p.row === position.row
+            ? { ...p, value: "." }
+            : p
+        );
+      };
+
+      const getPosition = (grid) => {
+        return grid.find(
+          (p) =>
+            p.value === "^" ||
+            p.value === "v" ||
+            p.value === "<" ||
+            p.value === ">"
+        );
+      };
+
+      const getNextPosition = (grid, position) => {
+        let temp = { ...position };
+        switch (position.value) {
+          case "<":
+            temp = {
+              ...position,
+              col: position.col - 1,
+            };
+            break;
+          case "^":
+            temp = {
+              ...position,
+              row: position.row - 1,
+            };
+            break;
+          case "v":
+            temp = {
+              ...position,
+              row: position.row + 1,
+            };
+            break;
+          case ">":
+            temp = {
+              ...position,
+              col: position.col + 1,
+            };
+            break;
+          default:
+            return null;
+        }
+
+        return {
+          ...temp,
+          value: grid.find((p) => p.row === temp.row && p.col === temp.col)
+            ?.value,
+        };
+      };
+
+      const parseInput = (text) => {
+        const grid = [[]];
+        const lines = text.split("\n");
+        for (let row = 0; row < lines.length; row++) {
+          grid[row] = [];
+          for (let col = 0; col < lines[row].length; col++) {
+            grid[row][col] = {
+              col,
+              row,
+              value: lines[row][col],
+            };
+          }
+        }
+
+        localStorage.setItem("initGrid", text);
+        return grid.flat();
+      };
+
+      window.addEventListener("DOMContentLoaded", () => {
+        const grid = getGrid();
+        if (grid !== null) {
+          inputEl.textContent = localStorage.getItem("initGrid");
+          renderGrid(grid);
+        } else if (inputEl.value.trim()) {
+          setup();
+        }
+      });
+
+      const setup = () => {
+        cancelLoop();
+        counterEl.innerHTML = 1;
+        const newGrid = parseInput(inputEl.value);
+        saveGrid(newGrid.map((p) => (p.value === "^" ? { ...p, z: 1 } : p)));
+        renderGrid(newGrid);
+        cancelLoop();
+      };
+    </script>
+  </body>
+</html>
